@@ -8,10 +8,28 @@ const METHODS = {
         version: '1.0',
         url: '/accounts/auth/api/login'
     },
-    shop: {
+
+    shopInfo: {
         version: '0.0',
         url: '/shop/info'
     },
+    shopItemPrices: {
+        version: '0.0',
+        url: '/shop/item-type-prices'
+    },
+    shopCreateSellLot: {
+        version: '0.0',
+        url: '/shop/create-sell-lot'
+    },
+    shopCancelSellLot: {
+        version: '0.0',
+        url: '/shop/cancel-sell-lot'
+    },
+    shopCloseSellLot: {
+        version: '0.0',
+        url: '/shop/close-sell-lot'
+    },
+
     heroInfo: {
         version: '1.9',
         url: '/game/api/info'
@@ -20,6 +38,7 @@ const METHODS = {
         version: '1.0',
         url: '/game/abilities/help/api/use'
     },
+
     cardGet: {
         version: '2.0',
         url: '/game/cards/api/get-cards'
@@ -110,8 +129,53 @@ class Account {
         return this;
     }
 
-    async getShop() {
-        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.shop)));
+    async shopInfo() {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.shopInfo)));
+    }
+
+    /**
+     * Возвращает цены для указаной Карты Судьбы
+     *
+     * @param cardType
+     * @return {Promise<*>}
+     */
+    async shopItemPrices(cardType) {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.shopItemPrices), 'GET', {item_type: cardType}));
+    }
+
+    /**
+     * Выставляет указаннубю карту (card_uid) на рынок по указаной цене
+     *
+     * @param card [string] Строка или массив строк с ID Карт Судьбы
+     * @param price number Цена продажи
+     * @return {Promise<*>}
+     */
+    async shopCreateSellLot(card, price) {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.shopCreateSellLot), 'POST', {card, price}));
+    }
+
+    /**
+     * Отмена выставленной карты
+     *
+     * @param cardType string Полный тип карты
+     * @param price number цена
+     * @return {Promise<*>}
+     */
+    async shopCancelSellLot(cardType, price) {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.shopCancelSellLot), 'POST', {item_type: cardType, price}));
+    }
+
+    /**
+     * Купить карту казанного типа, по указаной цене
+     *
+     * @param cardType
+     * @param price
+     * @return {Promise<*>}
+     */
+    async shopCloseSellLot(cardType, price) {
+        const pospondedResponse = await parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.shopCloseSellLot), 'POST', {item_type: cardType, price}));
+
+        return await this.waitPospondetTask(pospondedResponse.status_url);
     }
 
     async getHeroInfo() {
@@ -128,7 +192,7 @@ class Account {
      * @link https://docs.the-tale.org/ru/stable/external_api/methods.html#id16
      * @return {Promise<*>}
      */
-    async getCards() {
+    async cardGet() {
         return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardGet)));
     }
 
@@ -138,7 +202,7 @@ class Account {
      * @link https://docs.the-tale.org/ru/stable/external_api/methods.html#id13
      * @return {Promise<*>}
      */
-    async receiveCards() {
+    async cardReceive() {
         return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardReceive), 'POST'));
     }
 
@@ -152,6 +216,23 @@ class Account {
      */
     async cardCombine(card) {
         return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardCombine), 'POST', {card}));
+    }
+
+    waitPospondetTask(url) {
+        return new Promise((success, reject) => {
+            function checkUrl() {
+                this.sendRequest(url + '?').then((response) => {
+                    const data = parseResponse(response);
+                    if (data.status === 'processing') {
+                        setTimeout(checkUrl.bind(this), 300);
+                    } else {
+                        success(data);
+                    }
+                });
+            }
+
+            setTimeout(checkUrl.bind(this), 300);
+        });
     }
 
     /**

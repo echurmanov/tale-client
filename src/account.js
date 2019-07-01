@@ -20,9 +20,17 @@ const METHODS = {
         version: '1.0',
         url: '/game/abilities/help/api/use'
     },
-    getCards: {
+    cardGet: {
         version: '2.0',
         url: '/game/cards/api/get-cards'
+    },
+    cardReceive: {
+        version: '1.0',
+        url: '/game/cards/api/receive'
+    },
+    cardCombine: {
+        version: '2.0',
+        url: '/game/cards/api/combine'
     }
 };
 
@@ -114,8 +122,36 @@ class Account {
         return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.sendHelp), 'POST'));
     }
 
+    /**
+     * Получить список карт
+     *
+     * @link https://docs.the-tale.org/ru/stable/external_api/methods.html#id16
+     * @return {Promise<*>}
+     */
     async getCards() {
-        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.getCards)));
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardGet)));
+    }
+
+    /**
+     * Получить новые карты
+     *
+     * @link https://docs.the-tale.org/ru/stable/external_api/methods.html#id13
+     * @return {Promise<*>}
+     */
+    async receiveCards() {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardReceive), 'POST'));
+    }
+
+    /**
+     * Превратить карты
+     *
+     * @link https://docs.the-tale.org/ru/stable/external_api/methods.html#id14
+     *
+     * @param card string[]
+     * @return {Promise<*>}
+     */
+    async cardCombine(card) {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardCombine), 'POST', {card}));
     }
 
     /**

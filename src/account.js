@@ -3,7 +3,49 @@ const querystring = require('querystring');
 
 const CLIENT_NAME = 'CrazyNigerHACS-1.0';
 
+const AUTH_STATE = {
+    NOT_REQUESTED: 0,
+    WAIT: 1,
+    SUCCESS: 2,
+    REJECT: 3
+};
+
 const METHODS = {
+    gameInfo: {
+        version: '1.0',
+        url: '/api/info'
+    },
+
+    authRequest: {
+        version: '1.0',
+        method: 'POST',
+        url: '/accounts/third-party/tokens/api/request-authorisation',
+    },
+
+    authState: {
+        version: '1.0',
+        method: 'GET',
+        url: '/accounts/third-party/tokens/api/authorisation-state'
+    },
+
+    authLogout: {
+        version: '1.0',
+        method: 'POST',
+        url: '/accounts/auth/api/logout'
+    },
+
+    accountInfo: {
+        version: '1.0',
+        method: 'GET',
+        url: '/accounts/%accountId%/api/show'
+    },
+
+    newMessagesNumber: {
+        version: '1.0',
+        method: 'GET',
+        url: '/accounts/messages/api/new-messages-number'
+    },
+
     login: {
         version: '1.0',
         url: '/accounts/auth/api/login'
@@ -32,6 +74,7 @@ const METHODS = {
 
     heroInfo: {
         version: '1.9',
+        method: 'GET',
         url: '/game/api/info'
     },
     sendHelp: {
@@ -66,10 +109,20 @@ function generateCsrf() {
 /**
  *
  * @param method
+ * @param urlReplaceParams
  * @returns {string}
  */
-function buildBaseApiUrl(method) {
-    return `${method.url}?api_version=${method.version}&api_client=${CLIENT_NAME}`;
+function buildBaseApiUrl(method, urlReplaceParams = null) {
+    let baseUrl = method.url;
+
+    if (urlReplaceParams) {
+        baseUrl = Object.keys(urlReplaceParams).reduce(
+            (url, placeHolder) => baseUrl.replace(`%${placeHolder}%`, urlReplaceParams[placeHolder])
+        , baseUrl);
+
+    }
+
+    return `${baseUrl}?api_version=${method.version}&api_client=${CLIENT_NAME}`;
 }
 
 /**
@@ -105,8 +158,83 @@ class Account {
         this.username = '';
         this.password = '';
         this.sessionId = '';
-        this.crfsToken1 = '';
-        this.crfsToken2 = '';
+        this.crfsToken = '';
+
+        this.accountId = null;
+        this.accountName = null;
+
+        this.heroId = null;
+        this.heroName = null;
+    }
+
+    /**
+     * Получени базовой информации об игре
+     *
+     * @return {Promise<*>}
+     */
+    async info() {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.gameInfo)));
+    }
+
+    /**
+     * Запрос на авторизацию приложения, в результате будет ссылка дял пользоватля для подтверждения авторизации
+     * и токен для првоерки
+     *
+     * @param applicationName
+     * @param applicationInfo
+     * @param applicationDesc
+     * @return {Promise<*>}
+     */
+    async authRequest(applicationName, applicationInfo, applicationDesc = '') {
+        const authResponse = await this.sendRequest(
+            buildBaseApiUrl(METHODS.authRequest),
+            METHODS.authRequest.method,
+            {
+                application_name: applicationName,
+                application_info: applicationInfo,
+                application_description: applicationDesc
+            }
+        );
+
+        const cookies = parseCookies(authResponse.headers['set-cookie']);
+        this.crfsToken = cookies['csrftoken'];
+        this.sessionId = cookies['sessionid'];
+
+        return parseResponse(authResponse).data.authorisation_page;
+    }
+
+    /**
+     * Запрос на авторизацию приложения, в результате будет ссылка дял пользоватля для подтверждения авторизации
+     * и токен для првоерки
+     *
+     * @return {Promise<*>}
+     */
+    async authState() {
+        const authStateResponse = await this.sendRequest(
+            buildBaseApiUrl(METHODS.authState),
+            METHODS.authState.method
+        );
+
+        const result = parseResponse(authStateResponse);
+        if (result.data.state === AUTH_STATE.SUCCESS) {
+            const cookies = parseCookies(authStateResponse.headers['set-cookie']);
+            this.crfsToken = cookies['csrftoken'];
+            this.sessionId = cookies['sessionid'];
+
+            this.accountId = result.data.account_id;
+            this.accountName = result.data.accountName;
+        }
+
+        return result.data;
+    }
+
+    /**
+     * Завершение пользовательской сессии
+     *
+     * @return {Promise<*>}
+     */
+    async authLogout() {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.authLogout), METHODS.authLogout.method));
     }
 
     async login(login, password) {
@@ -123,7 +251,7 @@ class Account {
         );
 
         const cookies = parseCookies(loginResponse.headers['set-cookie']);
-        this.crfsToken1 = cookies['csrftoken'];
+        this.crfsToken = cookies['csrftoken'];
         this.sessionId = cookies['sessionid'];
 
         return this;
@@ -178,8 +306,35 @@ class Account {
         return await this.waitPospondetTask(pospondedResponse.status_url);
     }
 
-    async getHeroInfo() {
-        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.heroInfo)));
+    /**
+     * Получение информации о текущем акаунте
+     *
+     * @return {Promise<*>}
+     */
+    async accountInfo() {
+        if (!this.accountId) {
+            return Promise.resolve({});
+        }
+
+        return await parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.accountInfo, {accountId: this.accountId}), METHODS.accountInfo.method));
+    }
+
+    /**
+     * Получение информаци о состоняии героя
+     *
+     * @param clientTurns
+     * @param accountId
+     * @return {Promise<*>}
+     */
+    async getHeroInfo(clientTurns = null, accountId = null) {
+        return parseResponse(await this.sendRequest(
+            buildBaseApiUrl(METHODS.heroInfo),
+            METHODS.heroInfo.method,
+            {
+                client_turns: clientTurns,
+                account_id: accountId
+            }
+        ));
     }
 
     async sendHelp() {
@@ -244,7 +399,7 @@ class Account {
      */
     sendRequest(uri, type = 'GET', data = {}) {
         return new Promise((success, reject) => {
-            const csrf = this.crfsToken1 ? this.crfsToken1 : generateCsrf();
+            const csrf = this.crfsToken ? this.crfsToken : generateCsrf();
             const sessionid = this.sessionId ? this.sessionId : generateCsrf();
             if (type === 'GET') {
                 data['_'] = (new Date()).getTime();

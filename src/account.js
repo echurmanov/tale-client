@@ -200,6 +200,12 @@ class Account {
         this.crfsToken = cookies['csrftoken'];
         this.sessionId = cookies['sessionid'];
 
+        const response = parseResponse(authResponse);
+
+        if (response.status === 'error') {
+            throw new Error("Error from Tale API: " + JSON.stringify(response.errors))
+        }
+
         return parseResponse(authResponse).data.authorisation_page;
     }
 

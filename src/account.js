@@ -93,6 +93,10 @@ const METHODS = {
     cardCombine: {
         version: '2.0',
         url: '/game/cards/api/combine'
+    },
+    diary: {
+        version: '1.0',
+        url: '/game/api/diary'
     }
 };
 
@@ -377,6 +381,16 @@ class Account {
      */
     async cardCombine(card) {
         return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.cardCombine), 'POST', {card}));
+    }
+    
+    /**
+     * Получение днивника героя
+     *
+     * @link https://docs.the-tale.org/ru/stable/external_api/methods.html#id10
+     * @returns {Promise<*>}
+     */
+    async getDiary() {
+        return parseResponse(await this.sendRequest(buildBaseApiUrl(METHODS.diary)));
     }
 
     waitPospondetTask(url) {

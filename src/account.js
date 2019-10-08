@@ -228,8 +228,13 @@ class Account {
         const result = parseResponse(authStateResponse);
         if (result.data.state === AUTH_STATE.SUCCESS) {
             const cookies = parseCookies(authStateResponse.headers['set-cookie']);
-            this.crfsToken = cookies['csrftoken'];
-            this.sessionId = cookies['sessionid'];
+            if (cookies['csrftoken']) {
+                this.crfsToken = cookies['csrftoken'];
+            }
+            
+            if (cookies['sessionid']) {
+                this.sessionId = cookies['sessionid'];
+            }
 
             this.accountId = result.data.account_id;
             this.accountName = result.data.accountName;
